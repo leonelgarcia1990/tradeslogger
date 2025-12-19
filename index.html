@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trades Logger</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📊 Trades Logger</h1>
+            <p>Registra y visualiza tus trades</p>
+        </header>
+
+        <!-- Formulario para agregar trades -->
+        <section class="form-section">
+            <h2>Agregar Nuevo Trade</h2>
+            <form id="tradeForm">
+                <div class="form-group">
+                    <label for="fecha">Fecha:</label>
+                    <input type="date" id="fecha" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="simbolo">Símbolo:</label>
+                    <input type="text" id="simbolo" placeholder="Ej: AAPL, BTC, EUR/USD" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="tipo">Tipo:</label>
+                    <select id="tipo" required>
+                        <option value="">Seleccionar...</option>
+                        <option value="Compra">Compra</option>
+                        <option value="Venta">Venta</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="cantidad">Cantidad:</label>
+                    <input type="number" id="cantidad" step="0.01" placeholder="0.00" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="precio">Precio:</label>
+                    <input type="number" id="precio" step="0.01" placeholder="0.00" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="notas">Notas:</label>
+                    <textarea id="notas" rows="3" placeholder="Notas opcionales..."></textarea>
+                </div>
+
+                <button type="submit" class="btn-primary">Guardar Trade</button>
+            </form>
+        </section>
+
+        <!-- Sección para mostrar trades -->
+        <section class="trades-section">
+            <div class="section-header">
+                <h2>Trades Registrados</h2>
+                <button id="refreshBtn" class="btn-secondary">🔄 Actualizar</button>
+            </div>
+            
+            <div id="loading" class="loading">Cargando...</div>
+            <div id="error" class="error"></div>
+            
+            <div id="tradesContainer" class="trades-container">
+                <!-- Los trades se cargarán aquí dinámicamente -->
+            </div>
+        </section>
+    </div>
+
+    <script src="config.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
