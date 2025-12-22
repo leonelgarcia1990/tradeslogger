@@ -50,6 +50,44 @@ body {
     margin-bottom: 30px;
 }
 
+.login-container form {
+    width: 100%;
+}
+
+.login-container .form-group {
+    margin-bottom: 20px;
+    text-align: left;
+}
+
+.login-container label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 600;
+    color: #555;
+}
+
+.login-container input {
+    width: 100%;
+    padding: 12px;
+    border: 2px solid #e0e0e0;
+    border-radius: 8px;
+    font-size: 1rem;
+    transition: border-color 0.3s;
+}
+
+.login-container input:focus {
+    outline: none;
+    border-color: #667eea;
+}
+
+.login-error {
+    color: #ef4444;
+    font-size: 0.9rem;
+    margin-bottom: 15px;
+    min-height: 20px;
+    text-align: center;
+}
+
 header {
     color: white;
     margin-bottom: 40px;

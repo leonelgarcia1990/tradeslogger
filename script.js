@@ -7,123 +7,109 @@ const errorEl = document.getElementById('error');
 const loginScreen = document.getElementById('loginScreen');
 const mainApp = document.getElementById('mainApp');
 const logoutBtn = document.getElementById('logoutBtn');
+const loginForm = document.getElementById('loginForm');
+const loginError = document.getElementById('loginError');
 
 // Configuración de la API de Google Sheets
 const SPREADSHEET_ID = CONFIG.SPREADSHEET_ID;
+const API_KEY = CONFIG.API_KEY;
+const SCRIPT_URL = CONFIG.SCRIPT_URL;
 const SHEET_NAME = CONFIG.SHEET_NAME || 'Trades';
 
-// Variable para almacenar el token de acceso
-let accessToken = null;
-let userEmail = null;
+// Variable para el usuario actual
+let currentUser = null;
 
 // URLs de la API
-const getReadUrl = () => `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${SHEET_NAME}`;
-const getAppendUrl = () => `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${SHEET_NAME}:append?valueInputOption=USER_ENTERED`;
-
-// Manejar la respuesta de Google Sign-In
-function handleCredentialResponse(response) {
-    // Decodificar el JWT para obtener información del usuario
-    const userInfo = parseJwt(response.credential);
-    
-    // Validar que el email esté autorizado (opcional)
-    if (CONFIG.ALLOWED_EMAILS && CONFIG.ALLOWED_EMAILS.length > 0) {
-        if (!CONFIG.ALLOWED_EMAILS.includes(userInfo.email)) {
-            showError('No tienes autorización para acceder a esta aplicación');
-            return;
-        }
-    }
-    
-    // Obtener el access token usando Google Identity Services
-    google.accounts.oauth2.initTokenClient({
-        client_id: CONFIG.CLIENT_ID,
-        scope: 'https://www.googleapis.com/auth/spreadsheets',
-        callback: (tokenResponse) => {
-            accessToken = tokenResponse.access_token;
-            userEmail = userInfo.email;
-            
-            // Guardar en sessionStorage
-            sessionStorage.setItem('accessToken', accessToken);
-            sessionStorage.setItem('userEmail', userEmail);
-            sessionStorage.setItem('userName', userInfo.name);
-            sessionStorage.setItem('userPhoto', userInfo.picture);
-            
-            showApp(userInfo);
-        }
-    }).requestAccessToken();
-}
-
-// Función para decodificar JWT
-function parseJwt(token) {
-    const base64Url = token.split('.')[1];
-    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-    const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
-        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-    }).join(''));
-    
-    return JSON.parse(jsonPayload);
-}
+const getReadUrl = () => `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${SHEET_NAME}?key=${API_KEY}`;
 
 // Mostrar la aplicación después del login
-function showApp(userInfo) {
+function showApp() {
     loginScreen.style.display = 'none';
     mainApp.style.display = 'block';
     
-    // Mostrar información del usuario
-    document.getElementById('userName').textContent = userInfo.name;
-    document.getElementById('userPhoto').src = userInfo.picture;
+    // Mostrar nombre del usuario
+    document.getElementById('userName').textContent = currentUser.name;
     
     // Establecer la fecha actual por defecto
     document.getElementById('fecha').valueAsDate = new Date();
     
     // Cargar trades existentes
     loadTrades();
-    
-    // Event listeners
-    form.addEventListener('submit', handleSubmit);
-    refreshBtn.addEventListener('click', loadTrades);
-    logoutBtn.addEventListener('click', handleLogout);
 }
 
 // Manejar cierre de sesión
 function handleLogout() {
     // Limpiar datos
-    accessToken = null;
-    userEmail = null;
-    sessionStorage.clear();
-    
-    // Revocar el token
-    google.accounts.id.disableAutoSelect();
+    currentUser = null;
+    sessionStorage.removeItem('currentUser');
     
     // Mostrar pantalla de login
     mainApp.style.display = 'none';
     loginScreen.style.display = 'flex';
     
-    // Recargar la página para limpiar el estado
-    setTimeout(() => location.reload(), 100);
+    // Limpiar formularios
+    form.reset();
+    loginForm.reset();
 }
 
 // Verificar sesión existente al cargar
 document.addEventListener('DOMContentLoaded', () => {
-    const savedToken = sessionStorage.getItem('accessToken');
-    const savedEmail = sessionStorage.getItem('userEmail');
-    const savedName = sessionStorage.getItem('userName');
-    const savedPhoto = sessionStorage.getItem('userPhoto');
+    const savedUser = sessionStorage.getItem('currentUser');
     
-    if (savedToken && savedEmail) {
-        accessToken = savedToken;
-        userEmail = savedEmail;
-        
-        showApp({
-            email: savedEmail,
-            name: savedName,
-            picture: savedPhoto
-        });
+    if (savedUser) {
+        currentUser = JSON.parse(savedUser);
+        showApp();
     }
+    
+    // Event listener para el login
+    loginForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const username = document.getElementById('username').value;
+        const password = document.getElementById('password').value;
+        
+        // Buscar usuario en la configuración
+        const user = CONFIG.USERS.find(u => 
+            u.username === username && u.password === password
+        );
+        
+        if (user) {
+            // Login exitoso
+            currentUser = {
+                username: user.username,
+                name: user.name
+            };
+            
+            // Guardar sesión
+            sessionStorage.setItem('currentUser', JSON.stringify(currentUser));
+            
+            // Mostrar aplicación
+            showApp();
+            
+            // Limpiar formulario
+            loginForm.reset();
+            loginError.textContent = '';
+        } else {
+            // Login fallido
+            loginError.textContent = '❌ Usuario o contraseña incorrectos';
+            document.getElementById('password').value = '';
+        }
+    });
+    
+    // Event listeners
+    form.addEventListener('submit', handleSubmit);
+    refreshBtn.addEventListener('click', loadTrades);
+    logoutBtn.addEventListener('click', handleLogout);
 });
 
 // Manejar el envío del formulario
 async function handleSubmit(e) {
     e.preventDefault();
+    
+    if (!currentUser) {
+        showError('Debes iniciar sesión para guardar trades');
+        return;
+    }
     
     const tradeData = {
         fecha: document.getElementById('fecha').value,
@@ -148,7 +134,8 @@ async function handleSubmit(e) {
             tradeData.precio,
             total.toFixed(2),
             tradeData.notas,
-            new Date().toISOString()
+            new Date().toISOString(),
+            currentUser.username  // Agregar usuario que creó el trade
         ];
         
         const success = await appendToSheet(values);
@@ -167,39 +154,32 @@ async function handleSubmit(e) {
     }
 }
 
-// Agregar datos al Google Sheet con OAuth
+// Agregar datos al Google Sheet
 async function appendToSheet(values) {
-    if (!accessToken) {
-        throw new Error('No hay sesión activa');
+    try {
+        const response = await fetch(SCRIPT_URL, {
+            method: 'POST',
+            mode: 'no-cors',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                action: 'append',
+                data: values
+            })
+        });
+        
+        return true;
+    } catch (error) {
+        console.error('Error:', error);
+        throw new Error('No se pudo conectar con Google Sheets');
     }
-    
-    const response = await fetch(getAppendUrl(), {
-        method: 'POST',
-        headers: {
-            'Authorization': `Bearer ${accessToken}`,
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-            values: [values]
-        })
-    });
-    
-    if (!response.ok) {
-        if (response.status === 401) {
-            // Token expirado
-            handleLogout();
-            throw new Error('Sesión expirada. Por favor, inicia sesión nuevamente.');
-        }
-        throw new Error('Error al guardar en Google Sheets');
-    }
-    
-    return true;
 }
 
 // Cargar trades desde Google Sheets
 async function loadTrades() {
-    if (!accessToken) {
-        showError('No hay sesión activa');
+    if (!currentUser) {
+        showError('Debes iniciar sesión para ver los trades');
         return;
     }
     
@@ -207,17 +187,9 @@ async function loadTrades() {
         showLoading(true);
         hideError();
         
-        const response = await fetch(getReadUrl(), {
-            headers: {
-                'Authorization': `Bearer ${accessToken}`
-            }
-        });
+        const response = await fetch(getReadUrl());
         
         if (!response.ok) {
-            if (response.status === 401) {
-                handleLogout();
-                throw new Error('Sesión expirada');
-            }
             throw new Error('Error al cargar datos del Google Sheet');
         }
         

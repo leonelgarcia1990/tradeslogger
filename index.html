@@ -5,26 +5,29 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Trades Logger</title>
     <link rel="stylesheet" href="styles.css">
-    <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
     <!-- Pantalla de Login -->
     <div id="loginScreen" class="login-screen">
         <div class="login-container">
             <h1>📊 Trades Logger</h1>
-            <p>Inicia sesión con tu cuenta de Google</p>
-            <div id="g_id_onload"
-                 data-client_id="700022590876-p1si93gcrq36sioa7jk2g122vm8lvidk.apps.googleusercontent.com"
-                 data-callback="handleCredentialResponse">
-            </div>
-            <div class="g_id_signin" 
-                 data-type="standard"
-                 data-size="large"
-                 data-theme="outline"
-                 data-text="sign_in_with"
-                 data-shape="rectangular"
-                 data-logo_alignment="left">
-            </div>
+            <p>Inicia sesión para continuar</p>
+            
+            <form id="loginForm">
+                <div class="form-group">
+                    <label for="username">Usuario:</label>
+                    <input type="text" id="username" placeholder="Tu usuario" required autocomplete="username">
+                </div>
+                
+                <div class="form-group">
+                    <label for="password">Contraseña:</label>
+                    <input type="password" id="password" placeholder="Tu contraseña" required autocomplete="current-password">
+                </div>
+                
+                <div id="loginError" class="login-error"></div>
+                
+                <button type="submit" class="btn-primary">Iniciar Sesión</button>
+            </form>
         </div>
     </div>
 
@@ -37,8 +40,7 @@
                     <p>Registra y visualiza tus trades</p>
                 </div>
                 <div class="user-info">
-                    <img id="userPhoto" class="user-photo" src="" alt="User">
-                    <span id="userName"></span>
+                    <span>👤 <span id="userName"></span></span>
                     <button id="logoutBtn" class="btn-logout">Cerrar sesión</button>
                 </div>
             </div>
