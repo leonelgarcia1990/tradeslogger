@@ -4,17 +4,74 @@ const tradesContainer = document.getElementById('tradesContainer');
 const refreshBtn = document.getElementById('refreshBtn');
 const loadingEl = document.getElementById('loading');
 const errorEl = document.getElementById('error');
+const loginScreen = document.getElementById('loginScreen');
+const mainApp = document.getElementById('mainApp');
+const logoutBtn = document.getElementById('logoutBtn');
 
 // Configuración de la API de Google Sheets
 const SPREADSHEET_ID = CONFIG.SPREADSHEET_ID;
-const API_KEY = CONFIG.API_KEY;
 const SHEET_NAME = CONFIG.SHEET_NAME || 'Trades';
 
-// URLs de la API
-const READ_URL = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${SHEET_NAME}?key=${API_KEY}`;
+// Variable para almacenar el token de acceso
+let accessToken = null;
+let userEmail = null;
 
-// Inicializar la aplicación
-document.addEventListener('DOMContentLoaded', () => {
+// URLs de la API
+const getReadUrl = () => `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${SHEET_NAME}`;
+const getAppendUrl = () => `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${SHEET_NAME}:append?valueInputOption=USER_ENTERED`;
+
+// Manejar la respuesta de Google Sign-In
+function handleCredentialResponse(response) {
+    // Decodificar el JWT para obtener información del usuario
+    const userInfo = parseJwt(response.credential);
+    
+    // Validar que el email esté autorizado (opcional)
+    if (CONFIG.ALLOWED_EMAILS && CONFIG.ALLOWED_EMAILS.length > 0) {
+        if (!CONFIG.ALLOWED_EMAILS.includes(userInfo.email)) {
+            showError('No tienes autorización para acceder a esta aplicación');
+            return;
+        }
+    }
+    
+    // Obtener el access token usando Google Identity Services
+    google.accounts.oauth2.initTokenClient({
+        client_id: CONFIG.CLIENT_ID,
+        scope: 'https://www.googleapis.com/auth/spreadsheets',
+        callback: (tokenResponse) => {
+            accessToken = tokenResponse.access_token;
+            userEmail = userInfo.email;
+            
+            // Guardar en sessionStorage
+            sessionStorage.setItem('accessToken', accessToken);
+            sessionStorage.setItem('userEmail', userEmail);
+            sessionStorage.setItem('userName', userInfo.name);
+            sessionStorage.setItem('userPhoto', userInfo.picture);
+            
+            showApp(userInfo);
+        }
+    }).requestAccessToken();
+}
+
+// Función para decodificar JWT
+function parseJwt(token) {
+    const base64Url = token.split('.')[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+    }).join(''));
+    
+    return JSON.parse(jsonPayload);
+}
+
+// Mostrar la aplicación después del login
+function showApp(userInfo) {
+    loginScreen.style.display = 'none';
+    mainApp.style.display = 'block';
+    
+    // Mostrar información del usuario
+    document.getElementById('userName').textContent = userInfo.name;
+    document.getElementById('userPhoto').src = userInfo.picture;
+    
     // Establecer la fecha actual por defecto
     document.getElementById('fecha').valueAsDate = new Date();
     
@@ -24,6 +81,44 @@ document.addEventListener('DOMContentLoaded', () => {
     // Event listeners
     form.addEventListener('submit', handleSubmit);
     refreshBtn.addEventListener('click', loadTrades);
+    logoutBtn.addEventListener('click', handleLogout);
+}
+
+// Manejar cierre de sesión
+function handleLogout() {
+    // Limpiar datos
+    accessToken = null;
+    userEmail = null;
+    sessionStorage.clear();
+    
+    // Revocar el token
+    google.accounts.id.disableAutoSelect();
+    
+    // Mostrar pantalla de login
+    mainApp.style.display = 'none';
+    loginScreen.style.display = 'flex';
+    
+    // Recargar la página para limpiar el estado
+    setTimeout(() => location.reload(), 100);
+}
+
+// Verificar sesión existente al cargar
+document.addEventListener('DOMContentLoaded', () => {
+    const savedToken = sessionStorage.getItem('accessToken');
+    const savedEmail = sessionStorage.getItem('userEmail');
+    const savedName = sessionStorage.getItem('userName');
+    const savedPhoto = sessionStorage.getItem('userPhoto');
+    
+    if (savedToken && savedEmail) {
+        accessToken = savedToken;
+        userEmail = savedEmail;
+        
+        showApp({
+            email: savedEmail,
+            name: savedName,
+            picture: savedPhoto
+        });
+    }
 });
 
 // Manejar el envío del formulario
@@ -45,8 +140,7 @@ async function handleSubmit(e) {
         showLoading(true);
         hideError();
         
-        // Agregar la fila al Google Sheet
-        const success = await appendToSheet([
+        const values = [
             tradeData.fecha,
             tradeData.simbolo,
             tradeData.tipo,
@@ -55,14 +149,15 @@ async function handleSubmit(e) {
             total.toFixed(2),
             tradeData.notas,
             new Date().toISOString()
-        ]);
+        ];
+        
+        const success = await appendToSheet(values);
         
         if (success) {
             showSuccess('Trade guardado correctamente');
             form.reset();
             document.getElementById('fecha').valueAsDate = new Date();
             
-            // Recargar la lista de trades
             setTimeout(() => loadTrades(), 1000);
         }
     } catch (error) {
@@ -72,40 +167,57 @@ async function handleSubmit(e) {
     }
 }
 
-// Agregar datos al Google Sheet usando Apps Script
+// Agregar datos al Google Sheet con OAuth
 async function appendToSheet(values) {
-    // Esta función requiere un Web App de Google Apps Script
-    // Ver instrucciones en README.md
-    
-    if (!CONFIG.SCRIPT_URL) {
-        throw new Error('No se ha configurado SCRIPT_URL. Ver README.md para instrucciones.');
+    if (!accessToken) {
+        throw new Error('No hay sesión activa');
     }
     
-    const response = await fetch(CONFIG.SCRIPT_URL, {
+    const response = await fetch(getAppendUrl(), {
         method: 'POST',
-        mode: 'no-cors',
         headers: {
+            'Authorization': `Bearer ${accessToken}`,
             'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-            action: 'append',
-            data: values
+            values: [values]
         })
     });
     
-    // Con mode: 'no-cors', no podemos leer la respuesta, pero la solicitud se envía
+    if (!response.ok) {
+        if (response.status === 401) {
+            // Token expirado
+            handleLogout();
+            throw new Error('Sesión expirada. Por favor, inicia sesión nuevamente.');
+        }
+        throw new Error('Error al guardar en Google Sheets');
+    }
+    
     return true;
 }
 
 // Cargar trades desde Google Sheets
 async function loadTrades() {
+    if (!accessToken) {
+        showError('No hay sesión activa');
+        return;
+    }
+    
     try {
         showLoading(true);
         hideError();
         
-        const response = await fetch(READ_URL);
+        const response = await fetch(getReadUrl(), {
+            headers: {
+                'Authorization': `Bearer ${accessToken}`
+            }
+        });
         
         if (!response.ok) {
+            if (response.status === 401) {
+                handleLogout();
+                throw new Error('Sesión expirada');
+            }
             throw new Error('Error al cargar datos del Google Sheet');
         }
         
@@ -116,7 +228,6 @@ async function loadTrades() {
             return;
         }
         
-        // La primera fila son los encabezados
         const headers = data.values[0];
         const rows = data.values.slice(1);
         
