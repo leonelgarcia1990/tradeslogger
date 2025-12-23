@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Trades Logger</title>
+    <title>My Trades</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
     <!-- Pantalla de Login -->
     <div id="loginScreen" class="login-screen">
         <div class="login-container">
-            <h1>📊 Trades Logger</h1>
+            <h1>My Trades</h1>
             <p>Inicia sesión para continuar</p>
             
             <form id="loginForm">
@@ -36,8 +36,7 @@
         <header>
             <div class="header-content">
                 <div>
-                    <h1>📊 Trades Logger</h1>
-                    <p>Registra y visualiza tus trades</p>
+                    <h1>My Trades</h1>
                 </div>
                 <div class="user-info">
                     <span>👤 <span id="userName"></span></span>
@@ -46,8 +45,14 @@
             </div>
         </header>
 
-        <!-- Formulario para agregar trades -->
-        <section class="form-section">
+        <!-- Navegación por pestañas -->
+        <nav class="tabs-nav">
+            <button class="tab-btn active" data-tab="new-trade">Cargar Trade</button>
+            <button class="tab-btn" data-tab="open-trades">Mis Trades</button>
+        </nav>
+
+        <!-- Pestaña: Cargar Trade -->
+        <section id="new-trade" class="tab-content active form-section">
             <h2>Agregar Nuevo Trade</h2>
             <form id="tradeForm">
                 <div class="form-group">
@@ -88,10 +93,10 @@
             </form>
         </section>
 
-        <!-- Sección para mostrar trades -->
-        <section class="trades-section">
+        <!-- Pestaña: Mis Trades (Operaciones Abiertas) -->
+        <section id="open-trades" class="tab-content trades-section">
             <div class="section-header">
-                <h2>Trades Registrados</h2>
+                <h2>Operaciones Abiertas</h2>
                 <button id="refreshBtn" class="btn-secondary">🔄 Actualizar</button>
             </div>
             

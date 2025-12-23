@@ -1,9 +1,9 @@
 // Variables globales
 const form = document.getElementById('tradeForm');
-const tradesContainer = document.getElementById('tradesContainer');
-const refreshBtn = document.getElementById('refreshBtn');
-const loadingEl = document.getElementById('loading');
-const errorEl = document.getElementById('error');
+let tradesContainer;
+let refreshBtn;
+let loadingEl;
+let errorEl;
 const loginScreen = document.getElementById('loginScreen');
 const mainApp = document.getElementById('mainApp');
 const logoutBtn = document.getElementById('logoutBtn');
@@ -33,8 +33,7 @@ function showApp() {
     // Establecer la fecha actual por defecto
     document.getElementById('fecha').valueAsDate = new Date();
     
-    // Cargar trades existentes
-    loadTrades();
+    // No cargar trades automáticamente, solo cuando se vaya a la pestaña correspondiente
 }
 
 // Manejar cierre de sesión
@@ -54,12 +53,42 @@ function handleLogout() {
 
 // Verificar sesión existente al cargar
 document.addEventListener('DOMContentLoaded', () => {
+    // Inicializar elementos del DOM
+    tradesContainer = document.getElementById('tradesContainer');
+    refreshBtn = document.getElementById('refreshBtn');
+    loadingEl = document.getElementById('loading');
+    errorEl = document.getElementById('error');
+    
     const savedUser = sessionStorage.getItem('currentUser');
     
     if (savedUser) {
         currentUser = JSON.parse(savedUser);
         showApp();
     }
+    
+    // Event listener para las pestañas
+    const tabBtns = document.querySelectorAll('.tab-btn');
+    tabBtns.forEach(btn => {
+        btn.addEventListener('click', function() {
+            const tabName = this.getAttribute('data-tab');
+            
+            // Remover clase active de todos los botones y contenidos
+            tabBtns.forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            
+            // Agregar clase active al botón y contenido seleccionado
+            this.classList.add('active');
+            document.getElementById(tabName).classList.add('active');
+            
+            // Si se selecciona "Mis Trades", cargar los trades
+            if (tabName === 'open-trades') {
+                console.log('Cargando trades...');
+                loadTrades();
+            }
+        });
+    });
     
     // Event listener para el login
     loginForm.addEventListener('submit', function(e) {
@@ -111,6 +140,14 @@ async function handleSubmit(e) {
         return;
     }
     
+    // Obtener el botón de submit
+    const submitBtn = form.querySelector('button[type="submit"]');
+    
+    // Prevenir múltiples envíos
+    if (submitBtn.disabled) {
+        return;
+    }
+    
     const tradeData = {
         fecha: document.getElementById('fecha').value,
         simbolo: document.getElementById('simbolo').value.toUpperCase(),
@@ -123,6 +160,10 @@ async function handleSubmit(e) {
     const total = tradeData.cantidad * tradeData.precio;
     
     try {
+        // Deshabilitar el botón y cambiar texto
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Guardando...';
+        
         showLoading(true);
         hideError();
         
@@ -142,6 +183,7 @@ async function handleSubmit(e) {
         
         if (success) {
             showSuccess('Trade guardado correctamente');
+            // Limpiar formulario solo después de confirmar guardado exitoso
             form.reset();
             document.getElementById('fecha').valueAsDate = new Date();
             
@@ -151,6 +193,9 @@ async function handleSubmit(e) {
         showError('Error al guardar el trade: ' + error.message);
     } finally {
         showLoading(false);
+        // Rehabilitar el botón y restaurar texto
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Guardar Trade';
     }
 }
 
@@ -178,6 +223,11 @@ async function appendToSheet(values) {
 
 // Cargar trades desde Google Sheets
 async function loadTrades() {
+    console.log('loadTrades llamada');
+    console.log('tradesContainer:', tradesContainer);
+    console.log('loadingEl:', loadingEl);
+    console.log('errorEl:', errorEl);
+    
     if (!currentUser) {
         showError('Debes iniciar sesión para ver los trades');
         return;
@@ -187,27 +237,33 @@ async function loadTrades() {
         showLoading(true);
         hideError();
         
-        const response = await fetch(getReadUrl());
+        const url = getReadUrl();
+        console.log('Fetching URL:', url);
+        
+        const response = await fetch(url);
         
         if (!response.ok) {
             throw new Error('Error al cargar datos del Google Sheet');
         }
         
         const data = await response.json();
+        console.log('Datos recibidos:', data);
         
         if (!data.values || data.values.length <= 1) {
+            console.log('No hay datos o solo hay headers');
             showEmptyState();
             return;
         }
         
         const headers = data.values[0];
         const rows = data.values.slice(1);
+        console.log('Número de trades:', rows.length);
         
         displayTrades(rows);
         
     } catch (error) {
         showError('Error al cargar los trades: ' + error.message);
-        console.error('Error:', error);
+        console.error('Error completo:', error);
     } finally {
         showLoading(false);
     }
@@ -215,6 +271,8 @@ async function loadTrades() {
 
 // Mostrar trades en el HTML
 function displayTrades(rows) {
+    console.log('displayTrades llamada con:', rows);
+    
     if (rows.length === 0) {
         showEmptyState();
         return;
@@ -224,6 +282,8 @@ function displayTrades(rows) {
     const sortedRows = rows.sort((a, b) => {
         return new Date(b[0]) - new Date(a[0]);
     });
+    
+    console.log('Renderizando trades en:', tradesContainer);
     
     tradesContainer.innerHTML = sortedRows.map(row => {
         const [fecha, simbolo, tipo, cantidad, precio, total, notas] = row;
@@ -257,6 +317,8 @@ function displayTrades(rows) {
             </div>
         `;
     }).join('');
+    
+    console.log('HTML generado, trades renderizados');
 }
 
 // Mostrar estado vacío
